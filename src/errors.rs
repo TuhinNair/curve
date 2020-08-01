@@ -1,3 +1,1 @@
-pub enum CurveResult<E> {
-    Error(E),
-}
+pub type CurveResult<T> = std::result::Result<T, ()>;
