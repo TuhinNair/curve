@@ -1,6 +1,7 @@
 use structopt::StructOpt;
 use heck::TitleCase;
 use log::trace;
+use futures::executor::block_on;
 
 mod app;
 mod client;
@@ -9,6 +10,7 @@ mod errors;
 use errors::CurveResult;
 
 type OrderedJson = std::collections::BTreeMap<String, serde_json::Value>;
+
 
 fn main() -> CurveResult<()> {
     let mut app = app::App::from_args();
@@ -21,8 +23,8 @@ fn main() -> CurveResult<()> {
 
     match app.cmd {
         Some(ref method) => {
-            let resp = client::perform_method(&app, method)?;
-            handle_response(resp)
+            let resp = block_on(client::perform_method(&app, method));
+            block_on(handle_response(resp))
         },
         None => {
             let url = app.url().take().unwrap();
@@ -32,8 +34,8 @@ fn main() -> CurveResult<()> {
             } else {
                 reqwest::Method::GET
             };
-            let resp = client::perform(&app, method, &url, &app.parameters)?;
-            handle_response(resp)
+            let resp = block_on(client::perform(&app, method, &url, &app.parameters));
+            block_on(handle_response(resp))
         }
     }
 }

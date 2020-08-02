@@ -120,6 +120,19 @@ pub enum Method {
     DELETE(MethodData),
 }
 
+impl From<&Method> for reqwest::Method {
+    fn from(m: &Method) -> reqwest::Method {
+        match m {
+            Method::HEAD(_) => reqwest::Method::HEAD,
+            Method::GET(_) => reqwest::Method::GET,
+            Method::POST(_) => reqwest::Method::POST,
+            Method::PUT(_) => reqwest::Method::PUT,
+            Method::PATCH(_) => reqwest::Method::PATCH,
+            Method::DELETE(_) => reqwest::Method::DELETE,
+        }
+    }
+}
+
 #[derive(StructOpt, Debug)]
 pub struct MethodData {
     /// The URL to request
@@ -160,6 +173,23 @@ pub enum Parameter {
     DataFile {key: String, filename: String},
     // :=@
     RawJsonDataFile {key: String, filename: String},
+}
+
+impl Parameter {
+    pub fn is_form_file(&self) -> bool {
+        match *self {
+            Parameter::FormFile {..} => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_data(&self) -> bool {
+        match *self {
+            Parameter::Header {..} => false,
+            Parameter::Query {..} => false,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Debug)]
