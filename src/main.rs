@@ -23,24 +23,24 @@ fn main() -> CurveResult<()> {
 
     match app.cmd {
         Some(ref method) => {
-            let resp = block_on(client::perform_method(&app, method));
+            let resp = block_on(client::perform_method(&app, method)).unwrap();
             block_on(handle_response(resp))
         },
         None => {
-            let url = app.url().take().unwrap();
+            let url = app.url.take().unwrap();
             let has_data = app.parameters.iter().any(|p| p.is_data());
             let method = if has_data {
                 reqwest::Method::POST
             } else {
                 reqwest::Method::GET
             };
-            let resp = block_on(client::perform(&app, method, &url, &app.parameters));
+            let resp = block_on(client::perform(&app, method, &url, &app.parameters)).unwrap();
             block_on(handle_response(resp))
         }
     }
 }
 
-async fn handle_response(mut resp: reqwest::Response,) -> CurveResult<()> {
+async fn handle_response(resp: reqwest::blocking::Response,) -> CurveResult<()> {
     let status = resp.status();
     let mut s = format!("{:?} {} {}\n", resp.version(), status.as_u16(), status.canonical_reason().unwrap_or("Unknown"));
 
@@ -49,9 +49,9 @@ async fn handle_response(mut resp: reqwest::Response,) -> CurveResult<()> {
         let nice_key = key.as_str().to_title_case().replace(' ', "-");
         headers.push(format!("{}: {}", nice_key, value.to_str().unwrap_or("BAD HEADER VALUE")))
     };
-
-    let result = resp.text().await?;
-    let content_length = match resp.content_length() {
+    let maybe_content_length = resp.content_length();
+    let result = resp.text()?;
+    let content_length = match maybe_content_length {
         Some(len) => len,
         None => result.len() as u64,
     };

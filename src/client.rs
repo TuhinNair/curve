@@ -1,8 +1,9 @@
 use crate::app::{App, Method, Parameter};
 use crate::errors::{Error, CurveResult};
 use log::{self, info, debug, trace, log_enabled };
-use reqwest::multipart::Form;
-use reqwest::{Client, RequestBuilder, Response, Url};
+use reqwest::blocking::multipart::Form;
+use reqwest::blocking::{Client, RequestBuilder, Response};
+use reqwest::Url;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::File;
@@ -12,7 +13,7 @@ use url::ParseError;
 
 pub async fn perform_method(app: &App, method: &Method) -> CurveResult<Response> {
     let method_data = method.data();
-    perform(app, method.into(), &method_data.url, &method_data.parameters).await?
+    perform(app, method.into(), &method_data.url, &method_data.parameters).await
 }
 
 pub async  fn perform(app: &App, method: reqwest::Method, raw_url: &str, parameters: &Vec<Parameter>) -> CurveResult<Response> {
@@ -34,12 +35,12 @@ pub async  fn perform(app: &App, method: reqwest::Method, raw_url: &str, paramet
 
     if log_enabled!(log::Level::Info) {
         let start = Instant::now();
-        let result = builder.send().await.map_err(From::from);
+        let result = builder.send().map_err(From::from);
         let elapsed = start.elapsed();
         info!("Elapsed time: {:?}", elapsed);
         result
     } else {
-        builder.send().await.map_err(From::from)
+        builder.send().map_err(From::from)
     }
 }
 
@@ -100,15 +101,15 @@ fn handle_parameters(mut builder: RequestBuilder, is_form: bool, is_multipart: b
                 let v: Value = serde_json::from_reader(reader)?;
                 data.insert(key, v);
             }, 
-            Parameter::DataFile {key, filename} {
+            Parameter::DataFile {key, filename} => {
                 trace!("Adding data from file={} for key={}", filename, key);
                 let value = std::fs::read_to_string(filename)?;
                 data.insert(key, Value::String(value));
             }, 
-            Parameter::FormFile {key, filename} {
+            Parameter::FormFile {key, filename} => {
                 trace!("Adding file={} with key={}", filename, key);
                 multipart = Some(
-                    multipart.unwrap().file(key.to_owned(), filename.to_owned())?;
+                    multipart.unwrap().file(key.to_owned(), filename.to_owned()).unwrap()
                 );
             }
         };

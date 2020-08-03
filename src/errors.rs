@@ -1,3 +1,89 @@
-pub type CurveResult<T> = std::result::Result<T, ()>;
+use std::fmt;
+use url::ParseError;
 
-pub type Error = std::result::Result<(),()>;
+pub enum Error {
+    ParameterMissingSeparator(String),
+    MissingUrlAndCommand,
+    NotFormButHasFormFile,
+    ClientSerialization,
+    ClientTimeout,
+    ClientWithStatus(reqwest::StatusCode),
+    ClientOther,
+    SerdeJson(serde_json::error::Category),
+    IO(std::io::ErrorKind),
+    UrlParseError(ParseError),
+}
+
+pub type CurveResult<T> = std::result::Result<T, Error>;
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::ParameterMissingSeparator(s) => {
+                write!(f, "Missing separator when parsing parameter: {}", s)
+            },
+            Error::MissingUrlAndCommand =>  write!(f, "Must specify a Url or Command"),
+            Error::NotFormButHasFormFile => write!(f, "Cannot have a form file 'key@filename' unless --form option is set"),
+            Error::ClientSerialization => write!(f, "Serializing the request/response failed"),
+            Error::ClientTimeout => write!(f, "Timeout during request"),
+            Error::ClientWithStatus(status) => write!(f, "Got status code: {}", status),
+            Error::ClientOther => write!(f, "Unknown client error"),
+            Error::SerdeJson(c) => write!(f, "JSON error: {:?}", c),
+            Error::IO(l) => write!(f, "IO Error: {:?}", l),
+            Error::UrlParseError(e) => write!(f, "URL parsing error: {}", e),
+
+        }
+    }
+}
+
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::UrlParseError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    #[inline]
+    fn from(err: reqwest::Error) -> Error {
+        if err.is_decode() {
+            return Error::ClientSerialization;
+        }
+        if err.is_timeout() {
+            return Error::ClientTimeout;
+        }
+        if let Some(s) = err.status() {
+            return Error::ClientWithStatus(s);
+        }
+        Error::ClientOther
+    }
+}
+
+impl From<serde_json::error::Error> for Error {
+    #[inline]
+    fn from(err: serde_json::error::Error) -> Error {
+        Error::SerdeJson(err.classify())
+    }
+}
+
+impl From<std::io::Error> for Error {
+    #[inline]
+    fn from(err: std::io::Error) -> Error {
+        Error::IO(err.kind())
+    }
+}
+
+impl From<url::ParseError> for Error {
+    #[inline]
+    fn  from(err: url::ParseError) -> Error {
+        Error::UrlParseError(err)
+    }
+}
