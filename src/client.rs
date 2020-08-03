@@ -11,12 +11,12 @@ use std::io::BufReader;
 use std::time::Instant;
 use url::ParseError;
 
-pub async fn perform_method(app: &App, method: &Method) -> CurveResult<Response> {
+pub fn perform_method(app: &App, method: &Method) -> CurveResult<Response> {
     let method_data = method.data();
-    perform(app, method.into(), &method_data.url, &method_data.parameters).await
+    perform(app, method.into(), &method_data.url, &method_data.parameters)
 }
 
-pub async  fn perform(app: &App, method: reqwest::Method, raw_url: &str, parameters: &Vec<Parameter>) -> CurveResult<Response> {
+pub fn perform(app: &App, method: reqwest::Method, raw_url: &str, parameters: &Vec<Parameter>) -> CurveResult<Response> {
     let client = Client::new();
     let url = parse(app, raw_url)?;
     debug!("Parsed url: {}", url);

@@ -1,7 +1,6 @@
 use structopt::StructOpt;
 use heck::TitleCase;
 use log::trace;
-use futures::executor::block_on;
 
 mod app;
 mod client;
@@ -23,8 +22,8 @@ fn main() -> CurveResult<()> {
 
     match app.cmd {
         Some(ref method) => {
-            let resp = block_on(client::perform_method(&app, method)).unwrap();
-            block_on(handle_response(resp))
+            let resp = client::perform_method(&app, method).unwrap();
+            handle_response(resp)
         },
         None => {
             let url = app.url.take().unwrap();
@@ -34,13 +33,13 @@ fn main() -> CurveResult<()> {
             } else {
                 reqwest::Method::GET
             };
-            let resp = block_on(client::perform(&app, method, &url, &app.parameters)).unwrap();
-            block_on(handle_response(resp))
+            let resp = client::perform(&app, method, &url, &app.parameters).unwrap();
+            handle_response(resp)
         }
     }
 }
 
-async fn handle_response(resp: reqwest::blocking::Response,) -> CurveResult<()> {
+fn handle_response(resp: reqwest::blocking::Response,) -> CurveResult<()> {
     let status = resp.status();
     let mut s = format!("{:?} {} {}\n", resp.version(), status.as_u16(), status.canonical_reason().unwrap_or("Unknown"));
 
