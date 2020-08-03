@@ -1,6 +1,6 @@
-use structopt::StructOpt;
 use heck::TitleCase;
 use log::trace;
+use structopt::StructOpt;
 
 mod app;
 mod client;
@@ -9,7 +9,6 @@ mod errors;
 use errors::CurveResult;
 
 type OrderedJson = std::collections::BTreeMap<String, serde_json::Value>;
-
 
 fn main() -> CurveResult<()> {
     let mut app = app::App::from_args();
@@ -24,7 +23,7 @@ fn main() -> CurveResult<()> {
         Some(ref method) => {
             let resp = client::perform_method(&app, method).unwrap();
             handle_response(resp)
-        },
+        }
         None => {
             let url = app.url.take().unwrap();
             let has_data = app.parameters.iter().any(|p| p.is_data());
@@ -39,15 +38,24 @@ fn main() -> CurveResult<()> {
     }
 }
 
-fn handle_response(resp: reqwest::blocking::Response,) -> CurveResult<()> {
+fn handle_response(resp: reqwest::blocking::Response) -> CurveResult<()> {
     let status = resp.status();
-    let mut s = format!("{:?} {} {}\n", resp.version(), status.as_u16(), status.canonical_reason().unwrap_or("Unknown"));
+    let mut s = format!(
+        "{:?} {} {}\n",
+        resp.version(),
+        status.as_u16(),
+        status.canonical_reason().unwrap_or("Unknown")
+    );
 
     let mut headers = Vec::new();
     for (key, value) in resp.headers().iter() {
         let nice_key = key.as_str().to_title_case().replace(' ', "-");
-        headers.push(format!("{}: {}", nice_key, value.to_str().unwrap_or("BAD HEADER VALUE")))
-    };
+        headers.push(format!(
+            "{}: {}",
+            nice_key,
+            value.to_str().unwrap_or("BAD HEADER VALUE")
+        ))
+    }
     let maybe_content_length = resp.content_length();
     let result = resp.text()?;
     let content_length = match maybe_content_length {
@@ -61,12 +69,12 @@ fn handle_response(resp: reqwest::blocking::Response,) -> CurveResult<()> {
     println!("{}", s);
 
     let result_json: serde_json::Result<OrderedJson> = serde_json::from_str(&result);
-    
+
     match result_json {
         Ok(result_value) => {
             let result_str = serde_json::to_string_pretty(&result_value)?;
             println!("{}", result_str);
-        },
+        }
         Err(e) => {
             trace!("Failed to parse result to JSON: {}", e);
             println!("{}", result);

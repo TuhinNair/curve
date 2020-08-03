@@ -21,9 +21,12 @@ impl fmt::Display for Error {
         match self {
             Error::ParameterMissingSeparator(s) => {
                 write!(f, "Missing separator when parsing parameter: {}", s)
-            },
-            Error::MissingUrlAndCommand =>  write!(f, "Must specify a Url or Command"),
-            Error::NotFormButHasFormFile => write!(f, "Cannot have a form file 'key@filename' unless --form option is set"),
+            }
+            Error::MissingUrlAndCommand => write!(f, "Must specify a Url or Command"),
+            Error::NotFormButHasFormFile => write!(
+                f,
+                "Cannot have a form file 'key@filename' unless --form option is set"
+            ),
             Error::ClientSerialization => write!(f, "Serializing the request/response failed"),
             Error::ClientTimeout => write!(f, "Timeout during request"),
             Error::ClientWithStatus(status) => write!(f, "Got status code: {}", status),
@@ -31,7 +34,6 @@ impl fmt::Display for Error {
             Error::SerdeJson(c) => write!(f, "JSON error: {:?}", c),
             Error::IO(l) => write!(f, "IO Error: {:?}", l),
             Error::UrlParseError(e) => write!(f, "URL parsing error: {}", e),
-
         }
     }
 }
@@ -83,7 +85,7 @@ impl From<std::io::Error> for Error {
 
 impl From<url::ParseError> for Error {
     #[inline]
-    fn  from(err: url::ParseError) -> Error {
+    fn from(err: url::ParseError) -> Error {
         Error::UrlParseError(err)
     }
 }

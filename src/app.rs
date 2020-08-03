@@ -2,14 +2,14 @@ use log::{debug, trace};
 use std::convert::TryFrom;
 use structopt::StructOpt;
 
-use crate::errors::{Error, CurveResult};
+use crate::errors::{CurveResult, Error};
 
 /// A command line HTTP client
 #[derive(StructOpt, Debug)]
-#[structopt(name="curve")]
+#[structopt(name = "curve")]
 pub struct App {
     /// Activate quiet mode
-    /// 
+    ///
     /// This overrides any verbose settings
     #[structopt(short, long)]
     pub quiet: bool,
@@ -20,10 +20,10 @@ pub struct App {
 
     /// Form mode
     #[structopt(short, long)]
-    pub form: bool, 
+    pub form: bool,
 
     /// Basic authentication
-    /// 
+    ///
     /// A string of the form `username:password`. If only
     /// `username` is given then you will be prompted
     /// for a password. If you wish to use no password
@@ -38,7 +38,7 @@ pub struct App {
     pub token: Option<String>,
 
     /// Default transport.
-    /// 
+    ///
     /// If a URL is given without a transport, i.e example.com/foo
     /// http will be used as the transport by default. If this flag
     /// is set then https will be used instead
@@ -53,33 +53,33 @@ pub struct App {
     pub url: Option<String>,
 
     /// The parameters for the request if a method subcommand is not specified.
-    /// 
+    ///
     /// There are seven types of parameters that can be added to a command-line
     /// Each type of parameter is distinguished by the unique separator between
     /// the key and value
-    /// 
+    ///
     /// Header -- key.value
-    /// 
+    ///
     ///     e.g. X-API-TOKEN: abc123
-    /// 
+    ///
     /// File upload -- key@filename
-    /// 
+    ///
     ///     this simulates a file upload via multipart/form-data and required --form
-    /// 
+    ///
     /// Query parameter -- key==value
-    /// 
+    ///
     ///     e.g. foo==bar becomes example.com?foo=bar
     ///
     /// Data field -- key=value
-    /// 
+    ///
     ///     e.g. foo=bar.txt becomes {"foo": "the contents of bar.txt"} or form encoded
-    /// 
+    ///
     /// Raw JSON data where the value should be parsed to JSON first -- key:=value
-    /// 
+    ///
     ///     e.g. foo:=[1,2,3] becomes {"foo":[1,2,3]}
-    /// 
+    ///
     /// Raw JSON data from file -- key:=@filename
-    /// 
+    ///
     ///     e.g. foo:=@bar.json becomes {"foo":{"bar":"this is from bar.json"}}
     #[structopt(parse(try_from_str = parse_param))]
     pub parameters: Vec<Parameter>,
@@ -104,7 +104,7 @@ impl App {
             2 => Some("warn"),
             3 => Some("info"),
             4 => Some("debug"),
-            _ => Some("trace")
+            _ => Some("trace"),
         }
     }
 }
@@ -160,33 +160,33 @@ impl Method {
 #[derive(Debug)]
 pub enum Parameter {
     // :
-    Header {key: String, value: String},
+    Header { key: String, value: String },
     // =
-    Data {key: String, value: String},
+    Data { key: String, value: String },
     // :=
-    RawJsonData {key: String, value: String},
-    // == 
-    Query {key: String, value: String},
+    RawJsonData { key: String, value: String },
+    // ==
+    Query { key: String, value: String },
     // @
-    FormFile {key: String, filename: String},
+    FormFile { key: String, filename: String },
     // =@
-    DataFile {key: String, filename: String},
+    DataFile { key: String, filename: String },
     // :=@
-    RawJsonDataFile {key: String, filename: String},
+    RawJsonDataFile { key: String, filename: String },
 }
 
 impl Parameter {
     pub fn is_form_file(&self) -> bool {
         match *self {
-            Parameter::FormFile {..} => true,
+            Parameter::FormFile { .. } => true,
             _ => false,
         }
     }
 
     pub fn is_data(&self) -> bool {
         match *self {
-            Parameter::Header {..} => false,
-            Parameter::Query {..} => false,
+            Parameter::Header { .. } => false,
+            Parameter::Query { .. } => false,
             _ => true,
         }
     }
@@ -209,9 +209,9 @@ fn gather_escapes<'a>(src: &'a str) -> Vec<Token<'a>> {
             if start != end {
                 tokens.push(Token::Text(&src[start..end]));
             }
-            return tokens
+            return tokens;
         }
-        
+
         let c = a.unwrap();
         if c != '\\' {
             end += 1;
@@ -220,7 +220,7 @@ fn gather_escapes<'a>(src: &'a str) -> Vec<Token<'a>> {
         let b = chars.next();
 
         if b.is_none() {
-            tokens.push(Token::Text(&src[start..end+1]));
+            tokens.push(Token::Text(&src[start..end + 1]));
             return tokens;
         }
 
@@ -234,7 +234,7 @@ fn gather_escapes<'a>(src: &'a str) -> Vec<Token<'a>> {
                 tokens.push(Token::Escape(c));
                 end += 2;
                 start = end;
-            },
+            }
             _ => end += 2,
         }
     }
@@ -260,15 +260,15 @@ fn parse_param(src: &str) -> CurveResult<Parameter> {
                     idx = i;
                     break;
                 }
-            },
+            }
             Token::Escape(_) => {}
         };
-    };
+    }
 
     if found.is_empty() {
         return Err(Error::ParameterMissingSeparator(src.to_owned()));
     }
-    found.sort_by(|(ai, asep),(bi, bsep)| ai.cmp(bi).then(bsep.len().cmp(&asep.len())));
+    found.sort_by(|(ai, asep), (bi, bsep)| ai.cmp(bi).then(bsep.len().cmp(&asep.len())));
 
     let sep = found.first().unwrap().1;
     trace!("Found Separator: {}", sep);
@@ -294,7 +294,7 @@ fn parse_param(src: &str) -> CurveResult<Parameter> {
             };
         } else {
             if let Token::Text(s) = token {
-                let parts: Vec<&str> = s.splitn(2, sep).collect::<>();
+                let parts: Vec<&str> = s.splitn(2, sep).collect();
                 let k = parts.first().unwrap();
                 let v = parts.last().unwrap();
                 key.push_str(k);
@@ -303,17 +303,26 @@ fn parse_param(src: &str) -> CurveResult<Parameter> {
                 unreachable!();
             }
         };
-    };
+    }
 
     if let Ok(separator) = Separator::try_from(*sep) {
         match separator {
-            Separator::At => Ok(Parameter::FormFile {key, filename: value}),
-            Separator::Equal => Ok(Parameter::Data {key, value}),
-            Separator::Colon => Ok(Parameter::Header {key, value}),
-            Separator::ColonEqual => Ok(Parameter::RawJsonData {key, value}),
-            Separator::EqualEqual => Ok(Parameter::Query {key, value}),
-            Separator::EqualAt => Ok(Parameter::DataFile {key, filename: value}),
-            Separator::Snail => Ok(Parameter::RawJsonDataFile {key, filename: value}),
+            Separator::At => Ok(Parameter::FormFile {
+                key,
+                filename: value,
+            }),
+            Separator::Equal => Ok(Parameter::Data { key, value }),
+            Separator::Colon => Ok(Parameter::Header { key, value }),
+            Separator::ColonEqual => Ok(Parameter::RawJsonData { key, value }),
+            Separator::EqualEqual => Ok(Parameter::Query { key, value }),
+            Separator::EqualAt => Ok(Parameter::DataFile {
+                key,
+                filename: value,
+            }),
+            Separator::Snail => Ok(Parameter::RawJsonDataFile {
+                key,
+                filename: value,
+            }),
         }
     } else {
         unreachable!();
@@ -324,10 +333,10 @@ fn parse_param(src: &str) -> CurveResult<Parameter> {
 enum Separator {
     Colon,
     Equal,
-    At, 
+    At,
     ColonEqual,
     EqualEqual,
-    EqualAt, 
+    EqualAt,
     Snail,
 }
 
@@ -343,7 +352,7 @@ impl TryFrom<&str> for Separator {
             "==" => Ok(Separator::EqualEqual),
             "=@" => Ok(Separator::EqualAt),
             ":=@" => Ok(Separator::Snail),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

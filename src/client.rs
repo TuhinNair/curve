@@ -1,6 +1,6 @@
 use crate::app::{App, Method, Parameter};
-use crate::errors::{Error, CurveResult};
-use log::{self, info, debug, trace, log_enabled };
+use crate::errors::{CurveResult, Error};
+use log::{self, debug, info, log_enabled, trace};
 use reqwest::blocking::multipart::Form;
 use reqwest::blocking::{Client, RequestBuilder, Response};
 use reqwest::Url;
@@ -13,10 +13,20 @@ use url::ParseError;
 
 pub fn perform_method(app: &App, method: &Method) -> CurveResult<Response> {
     let method_data = method.data();
-    perform(app, method.into(), &method_data.url, &method_data.parameters)
+    perform(
+        app,
+        method.into(),
+        &method_data.url,
+        &method_data.parameters,
+    )
 }
 
-pub fn perform(app: &App, method: reqwest::Method, raw_url: &str, parameters: &Vec<Parameter>) -> CurveResult<Response> {
+pub fn perform(
+    app: &App,
+    method: reqwest::Method,
+    raw_url: &str,
+    parameters: &Vec<Parameter>,
+) -> CurveResult<Response> {
     let client = Client::new();
     let url = parse(app, raw_url)?;
     debug!("Parsed url: {}", url);
@@ -63,7 +73,12 @@ fn parse(app: &App, s: &str) -> Result<Url, ParseError> {
     }
 }
 
-fn handle_parameters(mut builder: RequestBuilder, is_form: bool, is_multipart: bool, parameters: &Vec<Parameter>) -> CurveResult<RequestBuilder> {
+fn handle_parameters(
+    mut builder: RequestBuilder,
+    is_form: bool,
+    is_multipart: bool,
+    parameters: &Vec<Parameter>,
+) -> CurveResult<RequestBuilder> {
     let mut data: HashMap<&String, Value> = HashMap::new();
     let mut multipart = if is_multipart {
         Some(Form::new())
@@ -73,50 +88,53 @@ fn handle_parameters(mut builder: RequestBuilder, is_form: bool, is_multipart: b
 
     for param in parameters.iter() {
         match param {
-            Parameter::Header {key, value} => {
+            Parameter::Header { key, value } => {
                 trace!("Adding Header: {}", key);
                 builder = builder.header(key, value);
-            },
-            Parameter::Data {key, value} => {
+            }
+            Parameter::Data { key, value } => {
                 trace!("Adding Data: {}", key);
                 if multipart.is_none() {
                     data.insert(key, Value::String(value.to_owned()));
                 } else {
                     multipart = multipart.map(|m| m.text(key.to_owned(), value.to_owned()));
                 }
-            },
-            Parameter::Query {key, value} => {
+            }
+            Parameter::Query { key, value } => {
                 trace!("Adding query parameter: {}", key);
                 builder = builder.query(&[(key, value)]);
-            },
-            Parameter::RawJsonData {key, value} => {
+            }
+            Parameter::RawJsonData { key, value } => {
                 trace!("Adding JSON data: {}", key);
                 let v: Value = serde_json::from_str(value)?;
                 data.insert(key, v);
-            }, 
-            Parameter::RawJsonDataFile {key, filename} => {
+            }
+            Parameter::RawJsonDataFile { key, filename } => {
                 trace!("Adding JSON data for key={} from file={}", key, filename);
                 let file = File::open(filename)?;
                 let reader = BufReader::new(file);
                 let v: Value = serde_json::from_reader(reader)?;
                 data.insert(key, v);
-            }, 
-            Parameter::DataFile {key, filename} => {
+            }
+            Parameter::DataFile { key, filename } => {
                 trace!("Adding data from file={} for key={}", filename, key);
                 let value = std::fs::read_to_string(filename)?;
                 data.insert(key, Value::String(value));
-            }, 
-            Parameter::FormFile {key, filename} => {
+            }
+            Parameter::FormFile { key, filename } => {
                 trace!("Adding file={} with key={}", filename, key);
                 multipart = Some(
-                    multipart.unwrap().file(key.to_owned(), filename.to_owned()).unwrap()
+                    multipart
+                        .unwrap()
+                        .file(key.to_owned(), filename.to_owned())
+                        .unwrap(),
                 );
             }
         };
-    };
+    }
 
     if let Some(m) = multipart {
-        builder =   builder.multipart(m);
+        builder = builder.multipart(m);
     } else {
         if !data.is_empty() {
             if is_form {
@@ -130,7 +148,11 @@ fn handle_parameters(mut builder: RequestBuilder, is_form: bool, is_multipart: b
     Ok(builder)
 }
 
-fn handle_auth(mut builder: RequestBuilder, auth: &Option<String>, token: &Option<String>) -> CurveResult<RequestBuilder> {
+fn handle_auth(
+    mut builder: RequestBuilder,
+    auth: &Option<String>,
+    token: &Option<String>,
+) -> CurveResult<RequestBuilder> {
     if let Some(auth_string) = auth {
         let (username, maybe_password) = parse_auth(&auth_string)?;
         trace!("Parsed basic authentication. Username={}", username);
@@ -147,7 +169,7 @@ fn handle_auth(mut builder: RequestBuilder, auth: &Option<String>, token: &Optio
 fn parse_auth(s: &str) -> CurveResult<(String, Option<String>)> {
     if let Some(idx) = s.find(":") {
         let (username, password_with_colon) = s.split_at(idx);
-        let password = password_with_colon  .trim_start_matches(":");
+        let password = password_with_colon.trim_start_matches(":");
         if password.is_empty() {
             return Ok((username.to_owned(), None));
         } else {
