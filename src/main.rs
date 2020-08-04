@@ -1,7 +1,10 @@
 use heck::TitleCase;
 use log::trace;
 use structopt::StructOpt;
+use syntect::highlighting::Theme;
+use syntect::parsing::SyntaxSet;
 
+mod syntax;
 mod app;
 mod client;
 mod config;
@@ -22,6 +25,9 @@ fn main() -> CurveResult<()> {
         std::env::set_var("RUST_LOG", format!("curve={}", level));
         pretty_env_logger::init();
     };
+    
+    let (ss, ts) = syntax::build()?;
+    let theme = &ts.themes["Solarized (dark)"];
 
     let mut session = app
         .session
@@ -31,7 +37,7 @@ fn main() -> CurveResult<()> {
     match app.cmd {
         Some(ref method) => {
             let resp = client::perform_method(&app, method, &mut session)?;
-            handle_response(&app, resp, &mut session)
+            handle_response(&app, &ss, theme,  resp, &mut session)
         }
         None => {
             let url = app.url.take().unwrap();
@@ -42,13 +48,15 @@ fn main() -> CurveResult<()> {
                 reqwest::Method::GET
             };
             let resp = client::perform(&app, method, &mut session, &url, &app.parameters)?;
-            handle_response(&app, resp, &mut session)
+            handle_response(&app, &ss, theme, resp, &mut session)
         }
     }
 }
 
 fn handle_response(
     app: &app::App,
+    ss: &SyntaxSet,
+    theme: &Theme,
     resp: reqwest::blocking::Response,
     session: &mut Option<session::Session>,
 ) -> CurveResult<()> {
@@ -85,14 +93,14 @@ fn handle_response(
     headers.push(format!("Content-Length: {}", content_length));
     headers.sort();
     s.push_str(&(&headers[..]).join("\n"));
-    println!("{}", s);
-
+    highlight_string(ss, theme, "HTTP", &s);
+    println!("");
     let result_json: serde_json::Result<OrderedJson> = serde_json::from_str(&result);
 
     match result_json {
         Ok(result_value) => {
             let result_str = serde_json::to_string_pretty(&result_value)?;
-            println!("{}", result_str);
+            highlight_string(ss, theme, "JSON", &result_str);
         }
         Err(e) => {
             trace!("Failed to parse result to JSON: {}", e);
@@ -100,4 +108,19 @@ fn handle_response(
         }
     }
     Ok(())
+}
+
+fn highlight_string(ss: &SyntaxSet, theme: &Theme, syntax: &str, string: &str) {
+    use syntect::easy::HighlightLines;
+    use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+
+    let syn = ss
+        .find_syntax_by_name(syntax)
+        .expect(&format!("{} syntax should exist", syntax));
+    let mut h = HighlightLines::new(syn, theme);
+    for line in LinesWithEndings::from(string) {
+        let regions = h.highlight(line, &ss);
+        print!("{}", as_24_bit_terminal_escaped(&regions[..], false));
+    }
+    println!("\x1b[0m")
 }

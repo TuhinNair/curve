@@ -20,5 +20,6 @@ url = "2.1.1"
 dirs = "3.0.1"
 lazy_static = "1.4.0"
 toml = "0.5.6"
+syntect = "4.3.0"
 
 

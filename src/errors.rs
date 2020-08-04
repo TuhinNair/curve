@@ -12,6 +12,7 @@ pub enum Error {
     SerdeJson(serde_json::error::Category),
     IO(std::io::ErrorKind),
     UrlParseError(ParseError),
+    SyntaxLoadError(&'static str),
 }
 
 pub type CurveResult<T> = std::result::Result<T, Error>;
@@ -34,6 +35,7 @@ impl fmt::Display for Error {
             Error::SerdeJson(c) => write!(f, "JSON error: {:?}", c),
             Error::IO(l) => write!(f, "IO Error: {:?}", l),
             Error::UrlParseError(e) => write!(f, "URL parsing error: {}", e),
+            Error::SyntaxLoadError(typ) => write!(f, "Error loading syntax for {}", typ),
         }
     }
 }
