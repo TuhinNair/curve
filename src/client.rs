@@ -1,5 +1,6 @@
 use crate::app::{App, Method, Parameter};
 use crate::errors::{CurveResult, Error};
+use crate::session::Session;
 use log::{self, debug, info, log_enabled, trace};
 use reqwest::blocking::multipart::Form;
 use reqwest::blocking::{Client, RequestBuilder, Response};
@@ -11,11 +12,16 @@ use std::io::BufReader;
 use std::time::Instant;
 use url::ParseError;
 
-pub fn perform_method(app: &App, method: &Method) -> CurveResult<Response> {
+pub fn perform_method(
+    app: &App,
+    method: &Method,
+    session: &mut Option<Session>,
+) -> CurveResult<Response> {
     let method_data = method.data();
     perform(
         app,
         method.into(),
+        session,
         &method_data.url,
         &method_data.parameters,
     )
@@ -24,6 +30,7 @@ pub fn perform_method(app: &App, method: &Method) -> CurveResult<Response> {
 pub fn perform(
     app: &App,
     method: reqwest::Method,
+    session: &mut Option<Session>,
     raw_url: &str,
     parameters: &Vec<Parameter>,
 ) -> CurveResult<Response> {
@@ -40,6 +47,14 @@ pub fn perform(
     };
 
     let mut builder = client.request(method, url);
+    builder = handle_session(
+        builder,
+        session,
+        parameters,
+        !app.read_only,
+        &app.auth,
+        &app.token,
+    );
     builder = handle_parameters(builder, app.form, is_multipart, parameters)?;
     builder = handle_auth(builder, &app.auth, &app.token)?;
 
@@ -179,4 +194,24 @@ fn parse_auth(s: &str) -> CurveResult<(String, Option<String>)> {
         let password = rpassword::read_password_from_tty(Some("Password"))?;
         return Ok((s.to_owned(), Some(password)));
     }
+}
+
+fn handle_session(
+    mut builder: RequestBuilder,
+    session: &mut Option<Session>,
+    parameters: &Vec<Parameter>,
+    update_session: bool,
+    auth: &Option<String>,
+    token: &Option<String>,
+) -> RequestBuilder {
+    if let Some(s) = session {
+        trace!("Adding sesssion data to request");
+        builder = s.add_to_request(builder);
+        if update_session {
+            trace!("Updating session with parameters from request");
+            s.update_with_parameters(parameters);
+            s.update_auth(auth, token);
+        }
+    }
+    builder
 }

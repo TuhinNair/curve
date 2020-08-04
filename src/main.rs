@@ -4,7 +4,10 @@ use structopt::StructOpt;
 
 mod app;
 mod client;
+mod config;
+mod directories;
 mod errors;
+mod session;
 
 use errors::CurveResult;
 
@@ -13,16 +16,22 @@ type OrderedJson = std::collections::BTreeMap<String, serde_json::Value>;
 fn main() -> CurveResult<()> {
     let mut app = app::App::from_args();
     app.validate()?;
+    app.process_config_file();
 
     if let Some(level) = app.log_level() {
         std::env::set_var("RUST_LOG", format!("curve={}", level));
         pretty_env_logger::init();
     };
 
+    let mut session = app
+        .session
+        .as_ref()
+        .map(|name| session::Session::get_or_create(&app, name.clone(), app.host()));
+
     match app.cmd {
         Some(ref method) => {
-            let resp = client::perform_method(&app, method).unwrap();
-            handle_response(resp)
+            let resp = client::perform_method(&app, method, &mut session)?;
+            handle_response(&app, resp, &mut session)
         }
         None => {
             let url = app.url.take().unwrap();
@@ -32,13 +41,17 @@ fn main() -> CurveResult<()> {
             } else {
                 reqwest::Method::GET
             };
-            let resp = client::perform(&app, method, &url, &app.parameters).unwrap();
-            handle_response(resp)
+            let resp = client::perform(&app, method, &mut session, &url, &app.parameters)?;
+            handle_response(&app, resp, &mut session)
         }
     }
 }
 
-fn handle_response(resp: reqwest::blocking::Response) -> CurveResult<()> {
+fn handle_response(
+    app: &app::App,
+    resp: reqwest::blocking::Response,
+    session: &mut Option<session::Session>,
+) -> CurveResult<()> {
     let status = resp.status();
     let mut s = format!(
         "{:?} {} {}\n",
@@ -57,6 +70,12 @@ fn handle_response(resp: reqwest::blocking::Response) -> CurveResult<()> {
         ))
     }
     let maybe_content_length = resp.content_length();
+    if !app.read_only {
+        if let Some(s) = session {
+            s.update_with_response(&resp);
+            s.save(app)?;
+        }
+    }
     let result = resp.text()?;
     let content_length = match maybe_content_length {
         Some(len) => len,

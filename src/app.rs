@@ -1,8 +1,11 @@
 use log::{debug, trace};
 use std::convert::TryFrom;
+use std::path::PathBuf;
 use structopt::StructOpt;
 
+use crate::config;
 use crate::errors::{CurveResult, Error};
+use crate::session::make_safe_pathname;
 
 /// A command line HTTP client
 #[derive(StructOpt, Debug)]
@@ -83,6 +86,29 @@ pub struct App {
     ///     e.g. foo:=@bar.json becomes {"foo":{"bar":"this is from bar.json"}}
     #[structopt(parse(try_from_str = parse_param))]
     pub parameters: Vec<Parameter>,
+
+    /// Configuration file.
+    ///
+    /// verbose: u8
+    /// form: bool
+    /// auth: string
+    /// token: stinr
+    /// secure: bool
+    #[structopt(short, long, env = "CURVE_CONFIG", parse(from_os_str))]
+    pub config: Option<PathBuf>,
+
+    /// Session name
+    #[structopt(long)]
+    pub session: Option<String>,
+
+    /// Session storage location
+    #[structopt(long, parse(from_os_str))]
+    pub session_dir: Option<PathBuf>,
+
+    /// If true the use the stored session to augment the request,
+    /// but do not modify what is stored
+    #[structopt(long)]
+    pub read_only: bool,
 }
 
 impl App {
@@ -105,6 +131,44 @@ impl App {
             3 => Some("info"),
             4 => Some("debug"),
             _ => Some("trace"),
+        }
+    }
+
+    pub fn process_config_file(&mut self) {
+        let config_path = config::config_file(self);
+        let confif_opt = config::read_config_file(config_path);
+        if let Some(mut config) = confif_opt {
+            if self.verbose == 0 {
+                if let Some(v) = config.verbose {
+                    self.verbose = v;
+                }
+            }
+            if !self.form {
+                if let Some(f) = config.form {
+                    self.form = f;
+                }
+            };
+            if !self.secure {
+                if let Some(s) = config.secure {
+                    self.secure = s;
+                }
+            };
+            if !self.auth.is_none() {
+                self.auth = config.auth.take();
+            };
+            if self.token.is_none() {
+                self.token = config.token.take();
+            }
+        };
+    }
+
+    pub fn host(&self) -> String {
+        if let Some(url) = &self.url {
+            make_safe_pathname(url)
+        } else if let Some(cmd) = &self.cmd {
+            make_safe_pathname(&cmd.data().url)
+        } else {
+            unreachable!();
         }
     }
 }
